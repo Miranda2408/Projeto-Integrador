@@ -1,13 +1,14 @@
 const { Sequelize } = require('sequelize');
 
-// Colocamos os dados direto aqui para garantir que o Node consiga ler!
+// Os dados de conexão vêm do arquivo .env (backend/.env).
+// Assim a senha do banco não fica escrita no código nem vai para o GitHub.
 const sequelize = new Sequelize(
-  'aluguel_ferramentas', // Nome do banco que você criou no Workbench
-  'root',                // Seu usuário do MySQL
-  '',      // ⚠️ TROQUE PELA SUA SENHA DO WORKBENCH (se não tiver senha, deixe vazio '')
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASS || '',
   {
-    host: 'localhost',
-    port: 3307,          // A porta 3307 que deu certo no passo anterior
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
     dialect: 'mysql',
     logging: false,
   }

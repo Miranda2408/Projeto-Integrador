@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/auth');
 
 module.exports = (req, res, next) => {
   // 1. Capturar o cabeçalho de autorização enviado na requisição HTTP
@@ -22,15 +23,16 @@ module.exports = (req, res, next) => {
     return res.status(401).json({ erro: "Token mal formatado." });
   }
 
-  // 2. Validar o token de fato usando a nossa chave secreta
-  jwt.verify(token, 'minhasenhasupersecretaparaojwt', (err, decoded) => {
+  // 2. Validar o token de fato usando a chave secreta que vem do .env
+  jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, decoded) => {
     if (err) {
       return res.status(401).json({ erro: "Token inválido ou expirado." });
     }
 
-    // Se o token for válido, salvamos o ID do usuário dentro da requisição (req.idUsuario)
+    // Se o token for válido, salvamos o ID do usuário dentro da requisição (req.idUsuario).
+    // Os controllers usam esse ID para saber QUEM está fazendo a requisição.
     req.idUsuario = decoded.id;
-    
+
     // Libera a requisição para continuar para o controlador
     return next();
   });

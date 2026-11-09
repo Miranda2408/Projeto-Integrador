@@ -35,6 +35,7 @@ async function iniciarServidor() {
     });
   } catch (error) {
     console.error('❌ Falha ao conectar ou sincronizar o banco de dados:', error);
+    process.exit(1); // Encerra o programa: sem banco de dados a API não funciona
   }
 }
 

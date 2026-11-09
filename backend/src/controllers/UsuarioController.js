@@ -1,5 +1,7 @@
 const Usuario = require('../models/Usuario');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET, JWT_EXPIRA_EM } = require('../config/auth');
 
 module.exports = {
   // GET /api/usuarios - Lista todos os usuários (Mapeado do OpenAPI)
@@ -79,13 +81,22 @@ module.exports = {
       const { id } = req.params;
       const { nome, telefone } = req.body;
 
+      // PERMISSÃO: cada usuário só pode alterar a PRÓPRIA conta
+      if (Number(id) !== req.idUsuario) {
+        return res.status(403).json({ erro: "Você só pode alterar os dados da sua própria conta." });
+      }
+
       const usuario = await Usuario.findByPk(id);
       if (!usuario) {
         return res.status(404).json({ erro: "Usuário não encontrado." });
       }
 
-      // Atualiza apenas os campos permitidos na especificação
-      await usuario.update({ nome, telefone });
+      // Atualiza apenas os campos permitidos na especificação (e só os que foram enviados)
+      const dados = {};
+      if (nome !== undefined) dados.nome = nome;
+      if (telefone !== undefined) dados.telefone = telefone;
+
+      await usuario.update(dados);
 
       return res.status(200).json({
         id: usuario.id,
@@ -105,6 +116,11 @@ module.exports = {
     try {
       const { id } = req.params;
 
+      // PERMISSÃO: cada usuário só pode excluir a PRÓPRIA conta
+      if (Number(id) !== req.idUsuario) {
+        return res.status(403).json({ erro: "Você só pode excluir a sua própria conta." });
+      }
+
       const usuario = await Usuario.findByPk(id);
       if (!usuario) {
         return res.status(404).json({ erro: "Usuário não encontrado." });
@@ -113,6 +129,10 @@ module.exports = {
       await usuario.destroy();
       return res.status(200).json({ mensagem: "Usuário removido com sucesso." });
     } catch (error) {
+      // Se o usuário tem aluguéis registrados, o banco não deixa excluir (RESTRICT)
+      if (error.name === 'SequelizeForeignKeyConstraintError') {
+        return res.status(409).json({ erro: "Não é possível excluir um usuário que possui aluguéis registrados." });
+      }
       console.error(error);
       return res.status(500).json({ erro: "Erro ao remover usuário." });
     }
@@ -135,27 +155,27 @@ module.exports = {
       if (!senhaValida) {
         return res.status(401).json({ erro: "E-mail ou senha incorretos." });
       }
-      
-      const jwt = require('jsonwebtoken');
+
+      // O token é assinado com o segredo que vem do .env e expira em 1h
       const token = jwt.sign(
         { id: usuario.id, email: usuario.email },
-        'minhasenhasupersecretaparaojwt', // Chave secreta de validação
-        { expiresIn: '1h' } // O token expira e invalida automaticamente em 1h
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRA_EM }
       );
 
-      return res.status(200).json({ 
+      return res.status(200).json({
         usuario: {
           id: usuario.id,
           nome: usuario.nome,
           email: usuario.email
         },
         token
-        });
+      });
 
     } catch (error) {
-    console.error ("Erro no login:",error);
-    return res.status(500).json({ erro: "Erro interno no servidor ao tentar fazer login." });
-    } 
+      console.error("Erro no login:", error);
+      return res.status(500).json({ erro: "Erro interno no servidor ao tentar fazer login." });
+    }
   }
 
 };
