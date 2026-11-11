@@ -1,117 +1,176 @@
 const Inventario = require('../models/Inventario');
-const Aluguel = require('../models/Aluguel');
+const { idValido } = require('../utils/validacoes');
+
+// Transforma o item em objeto simples e garante que o preço sai como número
+// (o banco devolve DECIMAL como texto, e assim fica igual em todas as respostas).
+function formatar(item) {
+  return { ...item.toJSON(), preco_diaria: Number(item.preco_diaria) };
+}
+
+// Busca um item pelo id, mas SOMENTE se ele pertence ao usuário logado.
+// Se o item existe mas é de outra pessoa, devolve null (a resposta será 404).
+function buscarProprio(id, idUsuario) {
+  return Inventario.findOne({ where: { id, id_usuario: idUsuario } });
+}
+
+// Valida os campos recebidos no corpo da requisição.
+// completo = true  -> cadastro (nome_item e preco_diaria são obrigatórios)
+// completo = false -> edição (só valida o que foi enviado)
+// Devolve { erro } se algo estiver errado, ou { dados } com os valores já limpos.
+function lerCampos(body, completo) {
+  const b = body || {};
+  const dados = {};
+
+  if (completo || b.nome_item !== undefined) {
+    if (typeof b.nome_item !== 'string' || !b.nome_item.trim() || b.nome_item.trim().length > 150) {
+      return { erro: "nome_item é obrigatório (texto de até 150 caracteres)." };
+    }
+    dados.nome_item = b.nome_item.trim();
+  }
+
+  if (b.descricao !== undefined) {
+    if (b.descricao === null) {
+      dados.descricao = null;
+    } else if (typeof b.descricao !== 'string' || b.descricao.length > 2000) {
+      return { erro: "descricao deve ser um texto de até 2000 caracteres." };
+    } else {
+      dados.descricao = b.descricao.trim();
+    }
+  }
+
+  if (b.categoria !== undefined) {
+    if (!Inventario.CATEGORIAS.includes(b.categoria)) {
+      return { erro: `categoria inválida. Use uma destas: ${Inventario.CATEGORIAS.join(', ')}.` };
+    }
+    dados.categoria = b.categoria;
+  }
+
+  if (completo || b.preco_diaria !== undefined) {
+    let preco = NaN;
+    if (typeof b.preco_diaria === 'number') {
+      preco = b.preco_diaria;
+    } else if (typeof b.preco_diaria === 'string' && b.preco_diaria.trim() !== '') {
+      preco = Number(b.preco_diaria);
+    }
+    if (!Number.isFinite(preco) || preco <= 0 || preco > 99999999.99) {
+      return { erro: "preco_diaria deve ser um número maior que zero." };
+    }
+    dados.preco_diaria = Math.round(preco * 100) / 100;
+  }
+
+  if (b.status_disponibilidade !== undefined) {
+    if (typeof b.status_disponibilidade !== 'boolean') {
+      return { erro: "status_disponibilidade deve ser true ou false." };
+    }
+    dados.status_disponibilidade = b.status_disponibilidade;
+  }
+
+  return { dados };
+}
 
 module.exports = {
-  // GET /api/inventario - Lista todas as ferramentas disponíveis
+  // GET /api/inventario - Lista SOMENTE os itens do usuário logado
   async listar(req, res) {
     try {
-      const itens = await Inventario.findAll();
-      return res.status(200).json(itens);
+      const itens = await Inventario.findAll({
+        where: { id_usuario: req.idUsuario },
+        order: [['id', 'DESC']]
+      });
+      return res.status(200).json(itens.map(formatar));
     } catch (error) {
       console.error(error);
       return res.status(500).json({ erro: "Erro ao buscar itens do inventário." });
     }
   },
 
-  // POST /api/inventario - Cadastra uma nova ferramenta
-  async cadastrar(req, res) {
-    try {
-      const { nome_item, descricao, preco_diaria } = req.body;
-
-      // O dono do item é SEMPRE o usuário logado (vem do token), nunca do corpo da requisição.
-      // Assim ninguém consegue cadastrar um item em nome de outra pessoa.
-      const id_usuario = req.idUsuario;
-
-      if (!nome_item || !preco_diaria) {
-        return res.status(400).json({ erro: "nome_item e preco_diaria são obrigatórios." });
-      }
-
-      if (!(Number(preco_diaria) > 0)) {
-        return res.status(400).json({ erro: "preco_diaria deve ser um número maior que zero." });
-      }
-
-      const novoItem = await Inventario.create({
-        id_usuario,
-        nome_item,
-        descricao,
-        preco_diaria
-      });
-
-      return res.status(201).json(novoItem);
-    } catch (error) {
-      console.error(error);
-      return res.status(400).json({ erro: "Dados de cadastro inválidos." });
-    }
+  // GET /api/inventario/categorias - Lista as categorias aceitas (para o campo de seleção)
+  categorias(req, res) {
+    return res.status(200).json(Inventario.CATEGORIAS);
   },
 
-  // PUT /api/inventario/:id - Atualiza informações de um item
-  async atualizar(req, res) {
+  // GET /api/inventario/:id - Mostra um item do usuário logado
+  async buscarPorId(req, res) {
     try {
       const { id } = req.params;
-      const { nome_item, preco_diaria, status_disponibilidade } = req.body;
+      if (!idValido(id)) {
+        return res.status(400).json({ erro: "Identificador inválido." });
+      }
 
-      const item = await Inventario.findByPk(id);
+      const item = await buscarProprio(id, req.idUsuario);
       if (!item) {
         return res.status(404).json({ erro: "Item não encontrado." });
       }
 
-      // PERMISSÃO: só o dono do item pode alterá-lo
-      if (item.id_usuario !== req.idUsuario) {
-        return res.status(403).json({ erro: "Você só pode alterar os seus próprios itens." });
+      return res.status(200).json(formatar(item));
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ erro: "Erro ao buscar item." });
+    }
+  },
+
+  // POST /api/inventario - Cadastra um item para o usuário logado
+  async cadastrar(req, res) {
+    try {
+      const { erro, dados } = lerCampos(req.body, true);
+      if (erro) {
+        return res.status(400).json({ erro });
       }
 
-      if (preco_diaria !== undefined && !(Number(preco_diaria) > 0)) {
-        return res.status(400).json({ erro: "preco_diaria deve ser um número maior que zero." });
+      // O dono do item é SEMPRE o usuário logado (vem do token), nunca do corpo da requisição.
+      const novoItem = await Inventario.create({ ...dados, id_usuario: req.idUsuario });
+
+      return res.status(201).json(formatar(novoItem));
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ erro: "Erro ao cadastrar item." });
+    }
+  },
+
+  // PUT /api/inventario/:id - Atualiza um item do usuário logado
+  async atualizar(req, res) {
+    try {
+      const { id } = req.params;
+      if (!idValido(id)) {
+        return res.status(400).json({ erro: "Identificador inválido." });
       }
 
-      // Atualiza apenas os campos que foram enviados
-      const dados = {};
-      if (nome_item !== undefined) dados.nome_item = nome_item;
-      if (preco_diaria !== undefined) dados.preco_diaria = preco_diaria;
-      if (status_disponibilidade !== undefined) dados.status_disponibilidade = status_disponibilidade;
+      const item = await buscarProprio(id, req.idUsuario);
+      if (!item) {
+        return res.status(404).json({ erro: "Item não encontrado." });
+      }
+
+      const { erro, dados } = lerCampos(req.body, false);
+      if (erro) {
+        return res.status(400).json({ erro });
+      }
+      if (Object.keys(dados).length === 0) {
+        return res.status(400).json({ erro: "Envie ao menos um campo para atualizar." });
+      }
 
       await item.update(dados);
-      return res.status(200).json(item);
+      return res.status(200).json(formatar(item));
     } catch (error) {
       console.error(error);
       return res.status(500).json({ erro: "Erro ao atualizar item." });
     }
   },
 
-  // DELETE /api/inventario/:id - Remove um item do inventário (Regra 409)
+  // DELETE /api/inventario/:id - Exclui um item do usuário logado
   async deletar(req, res) {
     try {
       const { id } = req.params;
+      if (!idValido(id)) {
+        return res.status(400).json({ erro: "Identificador inválido." });
+      }
 
-      const item = await Inventario.findByPk(id);
+      const item = await buscarProprio(id, req.idUsuario);
       if (!item) {
         return res.status(404).json({ erro: "Item não encontrado." });
-      }
-
-      // PERMISSÃO: só o dono do item pode removê-lo
-      if (item.id_usuario !== req.idUsuario) {
-        return res.status(403).json({ erro: "Você só pode excluir os seus próprios itens." });
-      }
-
-      // REGRA DO BAREMA/OPENAPI: Verifica se o item possui algum aluguel pendente ou ativo
-      const possuiAluguel = await Aluguel.findOne({
-        where: {
-          id_item: id,
-          status_pedido: ['Pendente', 'Ativo'] // Aluguéis não concluídos
-        }
-      });
-
-      if (possuiAluguel) {
-        return res.status(409).json({ erro: "Não é possível deletar um item associado a um aluguel ativo." });
       }
 
       await item.destroy();
       return res.status(200).json({ mensagem: "Item deletado com sucesso." });
     } catch (error) {
-      // Se o item tem aluguéis antigos (concluídos/cancelados), o banco não deixa excluir (RESTRICT)
-      if (error.name === 'SequelizeForeignKeyConstraintError') {
-        return res.status(409).json({ erro: "Não é possível deletar um item que possui histórico de aluguéis." });
-      }
       console.error(error);
       return res.status(500).json({ erro: "Erro ao deletar item." });
     }

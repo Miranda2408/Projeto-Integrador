@@ -4,39 +4,31 @@ const routes = express.Router();
 // Importar os controladores
 const UsuarioController = require('../controllers/UsuarioController');
 const InventarioController = require('../controllers/InventarioController');
-const AluguelController = require('../controllers/AluguelController');
 
 // Importar o Middleware de Segurança
-const path = require('path');
-const authMiddleware = require(path.resolve(__dirname, '..', 'middlewares', 'auth.js'));
+const authMiddleware = require('../middlewares/auth');
 
 // =========================================================================
 // ROTAS PÚBLICAS (Qualquer um acessa sem token)
 // =========================================================================
-routes.post('/usuarios', UsuarioController.cadastrar); // Cadastro de conta
-routes.post('/login', UsuarioController.login);        // Login do sistema
+routes.post('/auth/register', UsuarioController.cadastrar); // Cadastro de conta
+routes.post('/auth/login', UsuarioController.login);        // Login do sistema
 
 // =========================================================================
 // A BARREIRA: Daqui para baixo, todas as rotas exigirão o token JWT!
 // =========================================================================
 routes.use(authMiddleware);
 
-// ROTAS DE USUÁRIOS PROTEGIDAS
-routes.get('/usuarios', UsuarioController.listar);
-routes.get('/usuarios/:id', UsuarioController.buscarPorId);
-routes.put('/usuarios/:id', UsuarioController.atualizar);
-routes.delete('/usuarios/:id', UsuarioController.deletar);
+// DADOS DO USUÁRIO LOGADO
+routes.get('/auth/me', UsuarioController.me);
 
-// ROTAS DO INVENTÁRIO PROTEGIDAS
+// ROTAS DO INVENTÁRIO (cada usuário só enxerga e altera os próprios itens)
+// Atenção: '/inventario/categorias' precisa vir ANTES de '/inventario/:id'
+routes.get('/inventario/categorias', InventarioController.categorias);
 routes.get('/inventario', InventarioController.listar);
+routes.get('/inventario/:id', InventarioController.buscarPorId);
 routes.post('/inventario', InventarioController.cadastrar);
 routes.put('/inventario/:id', InventarioController.atualizar);
 routes.delete('/inventario/:id', InventarioController.deletar);
-
-// ROTAS DE ALUGUÉIS PROTEGIDAS
-routes.get('/alugueis', AluguelController.listar);
-routes.post('/alugueis', AluguelController.registrar);
-routes.put('/alugueis/:id', AluguelController.atualizarStatus);
-routes.delete('/alugueis/:id', AluguelController.deletar);
 
 module.exports = routes;
