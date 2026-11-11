@@ -1,82 +1,129 @@
-import React, { useState } from 'react';
-import api from '../services/api'; // Importa a nossa configuração do Axios
+import { useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { mensagemDeErro } from '../services/api';
+import { emailValido } from '../utils/formatar';
+import Alerta from '../components/Alerta';
 
 export default function Cadastro() {
-  // Estados para armazenar o que o usuário digita nos campos
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
-  const [telefone, setTelefone] = useState('');
-  
-  // Estados para exibir mensagens na tela (Sucesso ou Erro)
-  const [mensagemSucesso, setMensagemSucesso] = useState('');
-  const [mensagemErro, setMensagemErro] = useState('');
+  const { token, registrar } = useAuth();
+  const navigate = useNavigate();
 
-  // Função disparada quando o usuário clica no botão "Cadastrar"
-  async function lidarComCadastro(e) {
-    e.preventDefault(); // Impede a página de recarregar sozinha
-    setMensagemSucesso('');
-    setMensagemErro('');
+  // Um único objeto guarda todos os campos; "name" de cada input diz qual campo alterar
+  const [form, setForm] = useState({ nome: '', email: '', senha: '', confirmarSenha: '', telefone: '' });
+  const [erros, setErros] = useState({});
+  const [erroApi, setErroApi] = useState('');
+  const [enviando, setEnviando] = useState(false);
 
+  // Quem já está logado não precisa criar conta
+  if (token && !enviando) {
+    return <Navigate to="/ferramentas" replace />;
+  }
+
+  function alterar(e) {
+    const { name, value } = e.target;
+    setForm((atual) => ({ ...atual, [name]: value }));
+  }
+
+  function validar() {
+    const novos = {};
+    if (!form.nome.trim()) {
+      novos.nome = 'Informe seu nome.';
+    } else if (form.nome.trim().length > 100) {
+      novos.nome = 'O nome deve ter no máximo 100 caracteres.';
+    }
+    if (!emailValido(form.email.trim())) {
+      novos.email = 'Informe um e-mail válido.';
+    }
+    if (form.senha.length < 6) {
+      novos.senha = 'A senha deve ter pelo menos 6 caracteres.';
+    } else if (form.senha.length > 72) {
+      novos.senha = 'A senha deve ter no máximo 72 caracteres.';
+    }
+    if (form.confirmarSenha !== form.senha) {
+      novos.confirmarSenha = 'As senhas não são iguais.';
+    }
+    if (form.telefone.length > 20) {
+      novos.telefone = 'O telefone deve ter no máximo 20 caracteres.';
+    }
+    return novos;
+  }
+
+  async function enviar(e) {
+    e.preventDefault();
+    setErroApi('');
+
+    const novos = validar();
+    setErros(novos);
+    if (Object.keys(novos).length > 0) {
+      return;
+    }
+
+    setEnviando(true);
     try {
-      // Envia os dados digitados para a rota POST /api/usuarios do seu Back-end
-      const resposta = await api.post('/usuarios', {
-        nome,
-        email,
-        senha,
-        telefone
+      await registrar({
+        nome: form.nome.trim(),
+        email: form.email.trim(),
+        senha: form.senha,
+        telefone: form.telefone.trim()
       });
-
-      // Se der certo, exibe a mensagem de sucesso e limpa os campos do formulário
-      setMensagemSucesso(resposta.data.mensagem || 'Cadastro realizado com sucesso!');
-      setNome('');
-      setEmail('');
-      setSenha('');
-      setTelefone('');
-
-    } catch (error) {
-      // Se a API devolver um erro (ex: e-mail já cadastrado), exibe a mensagem na tela
-      if (error.response && error.response.data && error.response.data.erro) {
-        setMensagemErro(error.response.data.erro);
-      } else {
-        setMensagemErro('Não foi possível conectar ao servidor.');
-      }
+      // Conta criada: vai para o login com uma mensagem de sucesso
+      navigate('/login', {
+        state: { mensagem: 'Conta criada com sucesso! Entre com seu e-mail e senha.', tipo: 'sucesso' }
+      });
+    } catch (erro) {
+      // Erro da API (ex.: e-mail já cadastrado): mostra a mensagem e mantém o que foi digitado
+      setErroApi(mensagemDeErro(erro));
+    } finally {
+      setEnviando(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', fontFamily: 'Arial, sans-serif' }}>
-      <h2>Criar Nova Conta</h2>
-      
-      {/* Exibição de alertas visuais */}
-      {mensagemSucesso && <p style={{ color: 'green', fontWeight: 'bold' }}>{mensagemSucesso}</p>}
-      {mensagemErro && <p style={{ color: 'red', fontWeight: 'bold' }}>{mensagemErro}</p>}
+    <section className="cartao cartao-estreito">
+      <h1>Criar conta</h1>
 
-      <form onSubmit={lidarComCadastro}>
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Nome Completo:</label>
-          <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} required style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} />
+      {erroApi && <Alerta tipo="erro">{erroApi}</Alerta>}
+
+      <form onSubmit={enviar} noValidate>
+        <div className="campo">
+          <label htmlFor="nome">Nome completo</label>
+          <input id="nome" name="nome" type="text" autoComplete="name" value={form.nome} onChange={alterar} aria-invalid={Boolean(erros.nome)} />
+          {erros.nome && <span className="campo-erro">{erros.nome}</span>}
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>E-mail:</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} />
+        <div className="campo">
+          <label htmlFor="email">E-mail</label>
+          <input id="email" name="email" type="email" autoComplete="email" value={form.email} onChange={alterar} aria-invalid={Boolean(erros.email)} />
+          {erros.email && <span className="campo-erro">{erros.email}</span>}
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Senha:</label>
-          <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} />
+        <div className="campo">
+          <label htmlFor="telefone">Telefone <span className="opcional">(opcional)</span></label>
+          <input id="telefone" name="telefone" type="tel" autoComplete="tel" value={form.telefone} onChange={alterar} aria-invalid={Boolean(erros.telefone)} />
+          {erros.telefone && <span className="campo-erro">{erros.telefone}</span>}
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Telefone:</label>
-          <input type="text" value={telefone} onChange={(e) => setTelefone(e.target.value)} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }} />
+        <div className="campo">
+          <label htmlFor="senha">Senha</label>
+          <input id="senha" name="senha" type="password" autoComplete="new-password" value={form.senha} onChange={alterar} aria-invalid={Boolean(erros.senha)} />
+          {erros.senha && <span className="campo-erro">{erros.senha}</span>}
         </div>
 
-        <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-          Cadastrar
+        <div className="campo">
+          <label htmlFor="confirmarSenha">Confirmar senha</label>
+          <input id="confirmarSenha" name="confirmarSenha" type="password" autoComplete="new-password" value={form.confirmarSenha} onChange={alterar} aria-invalid={Boolean(erros.confirmarSenha)} />
+          {erros.confirmarSenha && <span className="campo-erro">{erros.confirmarSenha}</span>}
+        </div>
+
+        <button type="submit" className="botao botao-primario botao-bloco" disabled={enviando}>
+          {enviando ? 'Criando conta...' : 'Criar conta'}
         </button>
       </form>
-    </div>
+
+      <p className="texto-apoio">
+        Já tem conta? <Link to="/login">Entrar</Link>
+      </p>
+    </section>
   );
 }

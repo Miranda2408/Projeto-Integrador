@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 370" role="img" aria-label="Caixa de ferramentas com martelo, chave inglesa e chave de fenda">
+  <!-- fundo -->
+  <ellipse cx="260" cy="190" rx="225" ry="165" fill="#ffe8cc"/>
+  <ellipse cx="260" cy="350" rx="185" ry="10" fill="#1f2933" opacity="0.14"/>
+
+  <!-- martelo -->
+  <g transform="rotate(-16 170 215)">
+    <rect x="162" y="78" width="16" height="170" rx="7" fill="#b9814a"/>
+    <rect x="128" y="52" width="84" height="36" rx="7" fill="#495057"/>
+    <rect x="128" y="52" width="26" height="36" rx="7" fill="#868e96"/>
+    <rect x="186" y="58" width="6" height="24" rx="3" fill="#6b7785"/>
+  </g>
+
+  <!-- chave inglesa -->
+  <g transform="rotate(5 262 215)">
+    <rect x="253" y="100" width="18" height="150" rx="9" fill="#adb5bd"/>
+    <circle cx="262" cy="92" r="30" fill="#adb5bd"/>
+    <rect x="253" y="58" width="18" height="30" fill="#ffe8cc"/>
+    <circle cx="262" cy="92" r="30" fill="none" stroke="#868e96" stroke-width="3"/>
+    <rect x="253" y="58" width="18" height="30" fill="#ffe8cc"/>
+    <rect x="257" y="130" width="10" height="70" rx="5" fill="#ced4da"/>
+  </g>
+
+  <!-- chave de fenda -->
+  <g transform="rotate(17 352 215)">
+    <rect x="348" y="52" width="8" height="120" rx="3" fill="#ced4da"/>
+    <rect x="346" y="44" width="12" height="14" fill="#868e96"/>
+    <rect x="336" y="165" width="32" height="90" rx="12" fill="#e03131"/>
+    <rect x="336" y="185" width="32" height="6" fill="#a61e1e"/>
+    <rect x="336" y="203" width="32" height="6" fill="#a61e1e"/>
+    <rect x="336" y="221" width="32" height="6" fill="#a61e1e"/>
+  </g>
+
+  <!-- caixa -->
+  <rect x="92" y="208" width="336" height="136" rx="16" fill="#f08c00"/>
+  <path d="M92 296 H428 V328 a16 16 0 0 1 -16 16 H108 a16 16 0 0 1 -16 -16 Z" fill="#d97d00"/>
+  <rect x="84" y="196" width="352" height="28" rx="9" fill="#1f2933"/>
+  <rect x="104" y="232" width="312" height="8" rx="4" fill="#ffd8a8" opacity="0.7"/>
+  <!-- alça frontal -->
+  <rect x="215" y="258" width="90" height="22" rx="11" fill="#1f2933"/>
+  <rect x="225" y="263" width="70" height="12" rx="6" fill="#f08c00"/>
+  <!-- trincos -->
+  <rect x="116" y="244" width="28" height="22" rx="5" fill="#ffd43b" stroke="#1f2933" stroke-width="4"/>
+  <rect x="376" y="244" width="28" height="22" rx="5" fill="#ffd43b" stroke="#1f2933" stroke-width="4"/>
+</svg>
