@@ -15,5 +15,5 @@ if (!segredo || segredo.length < 32) {
 
 module.exports = {
   JWT_SECRET: segredo,
-  JWT_EXPIRA_EM: '1h'
+  JWT_EXPIRA_EM: '15m'
 };
